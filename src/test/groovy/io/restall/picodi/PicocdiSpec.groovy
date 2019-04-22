@@ -226,7 +226,7 @@ class PicocdiSpec extends Specification {
         given:
             def o = new TestClasses.O()
             def iFactory = new Picodi()
-                    .register(n)
+                    .register(o)
                     .createIFactory()
         when:
             def n = iFactory.create(TestClasses.N)

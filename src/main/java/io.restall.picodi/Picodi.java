@@ -4,12 +4,7 @@ import picocli.CommandLine;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -69,21 +64,28 @@ public class Picodi {
      */
     public Picodi register(Class<?> injectableClass, boolean lazy) {
         if (lazy) {
-            creatables.putAll(supertypeMap(injectableClass));
+            creatables.putAll(supertypeClassMap(injectableClass));
         } else {
-            eagerCreatables.add(injectableClass);
+            eagerCreatables.putAll(supertypeClassMap(injectableClass));
         }
         return this;
     }
 
-    private static Map<Class<?>, Class<?>> supertypeMap(Class<?> subtype) {
+    private static Map<Class<?>, Class<?>> supertypeClassMap(Class<?> subtype) {
         return getSupertypes(subtype)
                 .stream()
-                .collect(Collectors.toMap(i -> subtype, it -> it));
+                .collect(Collectors.toMap(superclass -> superclass, it -> subtype));
+    }
+
+    private static Map<Class<?>, Object> supertypeInstanceMap(Object subtypeInstance) {
+        return getSupertypes(subtypeInstance.getClass())
+                .stream()
+                .collect(Collectors.toMap(superclass -> superclass, it -> subtypeInstance));
     }
 
     private static Set<Class<?>> getSupertypes(Class<?> subtype) {
         Set<Class<?>> supertypes = new HashSet<>();
+        supertypes.add(subtype);
         Class<?> superclass = subtype;
         do {
             superclass = superclass.getSuperclass();
@@ -102,7 +104,7 @@ public class Picodi {
      * @return
      */
     public Picodi register(Object instance) {
-        injectables.put(instance.getClass(), instance);
+        injectables.putAll(supertypeInstanceMap(instance));
         return this;
     }
 
@@ -126,15 +128,15 @@ public class Picodi {
 
     public static class Injector implements CommandLine.IFactory {
 
-        private final Set<Class<?>> creatables;
+        private final Map<Class<?>, Class<?>> creatables;
 
         private final Map<Class<?>, Object> injectables;
 
-        private final Set<Class<?>> eagerCreatables;
+        private final Map<Class<?>, Class<?>> eagerCreatables;
 
         private final Map<Class<?>, Function<CommandLine.IFactory, Object>> injectableCreatorMethods;
 
-        public Injector(Set<Class<?>> creatables, Set<Class<?>> eagerCreatables, Map<Class<?>, Object> injectables, Map<Class<?>,
+        public Injector(Map<Class<?>, Class<?>> creatables, Map<Class<?>, Class<?>> eagerCreatables, Map<Class<?>, Object> injectables, Map<Class<?>,
                 Function<CommandLine.IFactory, Object>> injectableCreatorMethods) {
             this.creatables = creatables;
             this.injectables = injectables;
@@ -145,10 +147,12 @@ public class Picodi {
 
             injectables.putAll(injectableCreatorMethods.values()
                     .stream()
+                    .distinct()
                     .map(cls -> cls.apply(this))
                     .collect(Collectors.toMap(Object::getClass, injectable -> injectable)));
 
-            injectables.putAll(eagerCreatables.stream()
+            injectables.putAll(eagerCreatables.values().stream()
+                    .distinct()
                     .map(cls -> instantiate(cls, new HashSet<>()))
                     .collect(Collectors.toMap(Object::getClass, instance -> instance))
             );
@@ -167,8 +171,8 @@ public class Picodi {
             if (existing != null) {
                 return (K) existing;
             }
-            if (creatables.contains(cls)) {
-                return instantiate(cls, alreadyRequested);
+            if (creatables.containsKey(cls)) {
+                return instantiate((Class<K>) creatables.get(cls), alreadyRequested);
             }
             // TODO throw exception if can't be found
             throw new InjectableNotFound("Injectable not found <%s>", cls);
