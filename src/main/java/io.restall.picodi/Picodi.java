@@ -4,9 +4,16 @@ import picocli.CommandLine;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * Simple Dependency Injector
@@ -19,13 +26,13 @@ import java.util.stream.Collectors;
  */
 public class Picodi {
 
-    private Set<Class<?>> creatables = new HashSet<>();
+    private Map<Class<?>, Class<?>> creatables = new HashMap<>();
 
-    private Set<Class<?>> eagerCreatables = new HashSet<>();
+    private Map<Class<?>, Class<?>> eagerCreatables = new HashMap<>();
 
     private Map<Class<?>, Object> injectables = new HashMap<>();
 
-    private Map<Class<?>, Function<CommandLine.IFactory, Object>> injectableCreatorMethods;
+    private Map<Class<?>, Function<CommandLine.IFactory, Object>> injectableCreatorMethods = new HashMap<>();
 
     /**
      * Register a class that can be instantiated and injected.
@@ -40,7 +47,7 @@ public class Picodi {
      * @param injectableClass class that should be instantiated if it is needed
      * @return this so that multiple injectables can be declared fluidly.
      */
-    public io.restall.picodi.Picodi register(Class<?> injectableClass) {
+    public Picodi register(Class<?> injectableClass) {
         register(injectableClass, true);
         return this;
     }
@@ -60,18 +67,42 @@ public class Picodi {
      * @param lazy
      * @return
      */
-    public io.restall.picodi.Picodi register(Class<?> injectableClass, boolean lazy) {
-        creatables.add(injectableClass);
+    public Picodi register(Class<?> injectableClass, boolean lazy) {
+        if (lazy) {
+            creatables.putAll(supertypeMap(injectableClass));
+        } else {
+            eagerCreatables.add(injectableClass);
+        }
         return this;
     }
 
+    private static Map<Class<?>, Class<?>> supertypeMap(Class<?> subtype) {
+        return getSupertypes(subtype)
+                .stream()
+                .collect(Collectors.toMap(i -> subtype, it -> it));
+    }
+
+    private static Set<Class<?>> getSupertypes(Class<?> subtype) {
+        Set<Class<?>> supertypes = new HashSet<>();
+        Class<?> superclass = subtype;
+        do {
+            superclass = superclass.getSuperclass();
+            if (superclass != Object.class) {
+                supertypes.add(superclass);
+            }
+        } while (superclass != Object.class);
+        supertypes.addAll(Arrays.asList(subtype.getInterfaces()));
+        return supertypes;
+    }
+
     /**
-     * Add an object so that it can be injected into
+     * Add an instance of an injectable object
      *
      * @param instance
      * @return
      */
-    public io.restall.picodi.Picodi register(Object instance) {
+    public Picodi register(Object instance) {
+        injectables.put(instance.getClass(), instance);
         return this;
     }
 
@@ -85,11 +116,11 @@ public class Picodi {
      * @param <T>
      * @return
      */
-    public <T> io.restall.picodi.Picodi register(Class<T> injectableClass, Function<CommandLine.IFactory, T> creator) {
+    public <T> Picodi register(Class<T> injectableClass, Function<CommandLine.IFactory, T> creator) {
         return this;
     }
 
-    public CommandLine.IFactory createInjector() {
+    public CommandLine.IFactory createIFactory() {
         return new Injector(creatables, eagerCreatables, injectables, injectableCreatorMethods);
     }
 
@@ -116,6 +147,11 @@ public class Picodi {
                     .stream()
                     .map(cls -> cls.apply(this))
                     .collect(Collectors.toMap(Object::getClass, injectable -> injectable)));
+
+            injectables.putAll(eagerCreatables.stream()
+                    .map(cls -> instantiate(cls, new HashSet<>()))
+                    .collect(Collectors.toMap(Object::getClass, instance -> instance))
+            );
         }
 
         @Override
@@ -126,26 +162,33 @@ public class Picodi {
         // Method keeps track of what has already been requested so we can avoid circular dependencies
         private <K> K internalCreate(Class<K> cls, Set<Class> alreadyRequested) {
             // Check if it already exists
+
             Object existing = injectables.get(cls);
             if (existing != null) {
                 return (K) existing;
             }
-            boolean creatable = creatables.contains(cls);
-            // Check if it
-            return null;
+            if (creatables.contains(cls)) {
+                return instantiate(cls, alreadyRequested);
+            }
+            // TODO throw exception if can't be found
+            throw new InjectableNotFound("Injectable not found <%s>", cls);
         }
 
-        private <K> K instantiate(Class<K> cls) {
+        private <K> K instantiate(Class<K> cls, Set<Class> previouslyRequested) {
+            if (previouslyRequested.contains(cls)) {
+                throw new CyclicalDependencyException("Exception creating <%s>, cyclical dependency detected", cls);
+            }
             Constructor<K>[] constructors = (Constructor<K>[]) cls.getDeclaredConstructors();
 
-            if (constructors.length > 0) {
-                throw new MultipleConstructors("Unable to instantiate %s, class has multiple constructors", cls.toString());
+            if (constructors.length > 1) {
+                throw new MultipleConstructors("Unable to instantiate <%s>, class has multiple constructors", cls.toString());
             }
 
+            Set<Class> alreadyRequested = newSet(previouslyRequested, cls);
             Constructor<K> constructor = constructors[0];
             Object[] parameters = Arrays.stream(constructor.getParameterTypes())
-                    .map(paramCls -> internalCreate(paramCls, new HashSet<>()))
-            .toArray();
+                    .map(paramCls -> internalCreate(paramCls, alreadyRequested))
+                    .toArray();
 
             try {
                 K instantiated = constructor.newInstance(parameters);
@@ -153,9 +196,15 @@ public class Picodi {
 
                 return instantiated;
             } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-                throw new UnexpectedPicodiException(String.format("Unexpected reflection exception when instantiating %s", cls), e);
+                throw new UnexpectedPicodiException(String.format("Unexpected reflection exception when instantiating <%s>", cls), e);
             }
         }
+    }
 
+    private static Set<Class> newSet(Set<Class> existingHashSet, Class newElement) {
+        Set<Class> newSet = new HashSet<>(existingHashSet);
+        newSet.add(newElement);
+
+        return unmodifiableSet(newSet);
     }
 }
