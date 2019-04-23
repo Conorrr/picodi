@@ -1,6 +1,8 @@
 plugins {
     id 'java-library'
     id 'groovy'
+    id 'maven-publish'
+    id 'signing'
 }
 
 repositories {
@@ -13,4 +15,67 @@ dependencies {
     testImplementation 'org.codehaus.groovy:groovy-all:2.5.6'
     testImplementation 'org.spockframework:spock-core:1.2-groovy-2.5'
     testImplementation 'junit:junit:4.12'
+}
+
+task sourcesJar(type: Jar) {
+    from sourceSets.main.allJava
+    archiveClassifier = 'sources'
+}
+
+task javadocJar(type: Jar) {
+    from javadoc
+    archiveClassifier = 'javadoc'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'picodi'
+                description = 'Tiny Dependency Injection Framework for picocli'
+                url = 'https://github.com/conorrr/picodi'
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'conorrr'
+                        name = 'Conor Restall'
+                        email = 'conor@restall.io'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:git://github.com/Conorrr/picodi.git'
+                    developerConnection = 'scm:git:ssh://github.com/Conorrr/picodi.git'
+                    url = 'https://github.com/conorrr/picodi'
+                }
+            }
+            groupId = 'io.restall.picodi'
+            artifactId = 'picodi'
+            version = '0.0.1-SNAPSHOT'
+
+            from components.java
+            artifact sourcesJar
+            artifact javadocJar
+        }
+    }
+    repositories {
+        maven {
+            def releasesRepoUrl = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+            def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots/"
+
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+            credentials(PasswordCredentials) {
+                username = ossrhUsername
+                password = ossrhPassword
+            }
+        }
+    }
+}
+
+signing {
+    sign publishing.publications.mavenJava
 }
