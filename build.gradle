@@ -55,7 +55,7 @@ publishing {
             }
             groupId = 'io.restall.picodi'
             artifactId = 'picodi'
-            version = '0.0.1-SNAPSHOT'
+            version = version
 
             from components.java
             artifact sourcesJar
