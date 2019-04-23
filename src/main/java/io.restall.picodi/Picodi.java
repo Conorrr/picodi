@@ -40,7 +40,7 @@ public class Picodi {
      * If a class has multiple constructors and the class is not editable then use {@link #register(Class, Function)}
      *
      * @param injectableClass class that should be instantiated if it is needed
-     * @return this so that multiple injectables can be declared fluidly.
+     * @return picodi so calls can be chained
      */
     public Picodi register(Class<?> injectableClass) {
         register(injectableClass, true);
@@ -58,9 +58,9 @@ public class Picodi {
      * <p>
      * If a class has multiple constructors and the class is not editable then use {@link #register(Class, Function)}
      *
-     * @param injectableClass
-     * @param lazy
-     * @return
+     * @param injectableClass class that will be instantiated
+     * @param lazy whether to instantiate the class when it's needed or ahead of time
+     * @return picodi so calls can be chained
      */
     public Picodi register(Class<?> injectableClass, boolean lazy) {
         if (lazy) {
@@ -100,8 +100,8 @@ public class Picodi {
     /**
      * Add an instance of an injectable object
      *
-     * @param instance
-     * @return
+     * @param instance object that can be injected
+     * @return picodi so calls can be chained
      */
     public Picodi register(Object instance) {
         injectables.putAll(supertypeInstanceMap(instance));
@@ -111,12 +111,12 @@ public class Picodi {
     /**
      * Register a class as injectable and describe how it should be created.
      * <p>
-     * The {@param creator} function will be called once at most.
+     * The creator function will be called once at most.
      *
-     * @param injectableClass
-     * @param creator
-     * @param <T>
-     * @return
+     * @param injectableClass class that will be instantiated
+     * @param creator function that describes how to create the injectableClass
+     * @param <T> type of the injectableClass
+     * @return picodi so calls can be chained
      */
     public <T> Picodi register(Class<T> injectableClass, Function<CommandLine.IFactory, T> creator) {
         return this;
