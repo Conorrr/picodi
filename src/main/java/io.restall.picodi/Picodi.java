@@ -15,9 +15,7 @@ import static java.util.Collections.unmodifiableSet;
  * <p>
  * Lazy by default
  * <p>
- * TODO: Basic usage
- * <p>
- * Threadsafe - needs to only create any given injectable once.
+ * Not Threadsafe - contains race conditions during registration and cannot
  */
 public class Picodi {
 
@@ -119,6 +117,7 @@ public class Picodi {
      * @return picodi so calls can be chained
      */
     public <T> Picodi register(Class<T> injectableClass, Function<CommandLine.IFactory, T> creator) {
+        injectableCreatorMethods.put(injectableClass, (Function<CommandLine.IFactory, Object>)creator);
         return this;
     }
 
@@ -140,16 +139,8 @@ public class Picodi {
                 Function<CommandLine.IFactory, Object>> injectableCreatorMethods) {
             this.creatables = creatables;
             this.injectables = injectables;
-
-            // In case any of these classes are needed by creator methods
             this.eagerCreatables = eagerCreatables;
             this.injectableCreatorMethods = injectableCreatorMethods;
-
-            injectables.putAll(injectableCreatorMethods.values()
-                    .stream()
-                    .distinct()
-                    .map(cls -> cls.apply(this))
-                    .collect(Collectors.toMap(Object::getClass, injectable -> injectable)));
 
             injectables.putAll(eagerCreatables.values().stream()
                     .distinct()
@@ -163,10 +154,7 @@ public class Picodi {
             return internalCreate(cls, new HashSet<>());
         }
 
-        // Method keeps track of what has already been requested so we can avoid circular dependencies
         private <K> K internalCreate(Class<K> cls, Set<Class> alreadyRequested) {
-            // Check if it already exists
-
             Object existing = injectables.get(cls);
             if (existing != null) {
                 return (K) existing;
@@ -174,7 +162,15 @@ public class Picodi {
             if (creatables.containsKey(cls)) {
                 return instantiate((Class<K>) creatables.get(cls), alreadyRequested);
             }
-            // TODO throw exception if can't be found
+            if (eagerCreatables.containsKey(cls)) {
+                return instantiate((Class<K>) eagerCreatables.get(cls), alreadyRequested);
+            }
+            if (injectableCreatorMethods.containsKey(cls)) {
+                K instance = (K) injectableCreatorMethods.get(cls).apply(this);
+                injectables.put(cls, instance);
+                return instance;
+            }
+
             throw new InjectableNotFound("Injectable not found <%s>", cls);
         }
 

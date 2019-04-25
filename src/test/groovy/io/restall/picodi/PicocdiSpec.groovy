@@ -7,21 +7,28 @@ class PicocdiSpec extends Specification {
 
     def "Can instantiate no args constructor"() {
         given:
-            def iFactory = new Picodi().register(TestClasses.NoArg).createIFactory()
+            def iFactory = new Picodi()
+                    .register(TestClasses.NoArg)
+                    .createIFactory()
         expect:
             iFactory.create(TestClasses.NoArg).class == TestClasses.NoArg
     }
 
     def "Can instantiate single arg constructor"() {
         given:
-            def iFactory = new Picodi().register(TestClasses.A).register(TestClasses.B).createIFactory()
+            def iFactory = new Picodi()
+                    .register(TestClasses.A)
+                    .register(TestClasses.B)
+                    .createIFactory()
         expect:
             iFactory.create(TestClasses.B).class == TestClasses.B
     }
 
     def "Exception thrown if required arg cannot be found"() {
         given:
-            def iFactory = new Picodi().register(TestClasses.B).createIFactory()
+            def iFactory = new Picodi()
+                    .register(TestClasses.B)
+                    .createIFactory()
         when:
             iFactory.create(TestClasses.B)
         then:
@@ -41,7 +48,9 @@ class PicocdiSpec extends Specification {
 
     def "Exception thrown if requested class has multiple constructors"() {
         given:
-            def iFactory = new Picodi().register(TestClasses.C).createIFactory()
+            def iFactory = new Picodi()
+                    .register(TestClasses.C)
+                    .createIFactory()
         when:
             iFactory.create(TestClasses.C)
         then:
@@ -51,7 +60,9 @@ class PicocdiSpec extends Specification {
 
     def "Class is only instantiated once"() {
         given:
-            def iFactory = new Picodi().register(TestClasses.D).createIFactory()
+            def iFactory = new Picodi()
+                    .register(TestClasses.D)
+                    .createIFactory()
             TestClasses.D.reset()
         when:
             iFactory.create(TestClasses.D)
@@ -63,7 +74,9 @@ class PicocdiSpec extends Specification {
     def "a registered instance is returned"() {
         given:
             def c = new TestClasses.C(0)
-            def iFactory = new Picodi().register(c).createIFactory()
+            def iFactory = new Picodi()
+                    .register(c)
+                    .createIFactory()
         when:
             def cFromIFactory = iFactory.create(TestClasses.C)
         then:
@@ -74,7 +87,9 @@ class PicocdiSpec extends Specification {
         given:
             TestClasses.D.reset()
             def d = new TestClasses.D()
-            def iFactory = new Picodi().register(d).createIFactory()
+            def iFactory = new Picodi()
+                    .register(d)
+                    .createIFactory()
         when:
             def dFromIFactory = iFactory.create(TestClasses.D)
         then:
@@ -83,11 +98,27 @@ class PicocdiSpec extends Specification {
             d == dFromIFactory
     }
 
+    def "if a creator is supplied then that creator is called"() {
+        given:
+            TestClasses.D.reset()
+            def iFactory = new Picodi()
+                    .register(TestClasses.D.class, { picodi -> new TestClasses.D() })
+                    .createIFactory()
+        when:
+            iFactory.create(TestClasses.D)
+            iFactory.create(TestClasses.D)
+        then:
+            TestClasses.D.count == 1
+    }
+
     def "a registered instance will be injected if it is needed"() {
         given:
             TestClasses.D.reset()
             def d = new TestClasses.D()
-            def iFactory = new Picodi().register(d).register(TestClasses.E).createIFactory()
+            def iFactory = new Picodi()
+                    .register(d)
+                    .register(TestClasses.E)
+                    .createIFactory()
         when:
             def e = iFactory.create(TestClasses.E)
         then:
