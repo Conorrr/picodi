@@ -1,6 +1,6 @@
 package io.restall.picodi
 
-
+import org.junit.Test
 import spock.lang.Specification
 
 class PicocdiSpec extends Specification {
@@ -337,18 +337,35 @@ class PicocdiSpec extends Specification {
             ex.message == 'Injectable not found <class io.restall.picodi.TestClasses$B>'
     }
 
+    def "when multiple constructors are defined and only 1 is annotated with PrimaryConstructor, that constructor is used"() {
+        given:
+            def iFactory = new Picodi()
+                    .register(TestClasses.A)
+                    .register(TestClasses.Q)
+                    .createIFactory()
+        when:
+            def q = iFactory.create(TestClasses.Q)
+
+        then:
+            q != null
+            q.a != null
+            q instanceof TestClasses.Q
+    }
+
+    def "exception thrown when required class is not registered (Primary Constructor)"() {
+        given:
+            def iFactory = new Picodi()
+                    .register(TestClasses.Q)
+                    .createIFactory()
+        when:
+            iFactory.create(TestClasses.Q)
+
+        then:
+            def ex = thrown(InjectableNotFound)
+            ex.message == 'Injectable not found <class io.restall.picodi.TestClasses$A>'
+    }
+
     // Exception thrown if multiple implementations of a class that is required
-
-    // Given a class has multiple constructors
-    // And one of them is annotated with PrimaryConstructor
-    // When I request an instance of that class
-    // That constructor is called
-    // And the instantiated class is created
-
-    // Given a class has multiple constructors
-    // And one of them is annotated with PrimaryConstructor
-    // When I request an instance of that class and that constructor depends on a non registered class
-    // Then a dependency not found exception is thrown
 
     // Given a class is registered with picodi
     // When I try to register that class again

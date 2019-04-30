@@ -186,14 +186,11 @@ public class Picodi {
             if (previouslyRequested.contains(cls)) {
                 throw new CyclicalDependencyException("Exception creating <%s>, cyclical dependency detected", cls);
             }
-            Constructor<K>[] constructors = (Constructor<K>[]) cls.getDeclaredConstructors();
 
-            if (constructors.length > 1) {
-                throw new MultipleConstructors("Unable to instantiate <%s>, class has multiple constructors", cls.toString());
-            }
+            Constructor<K> constructor = getPrimaryConstructor(cls)
+                    .orElseThrow(() -> new MultipleConstructors("Unable to instantiate <%s>, class has multiple constructors", cls.toString()));
 
             Set<Class> alreadyRequested = newSet(previouslyRequested, cls);
-            Constructor<K> constructor = constructors[0];
             Object[] parameters = Arrays.stream(constructor.getParameterTypes())
                     .map(paramCls -> internalCreate(paramCls, alreadyRequested))
                     .toArray();
@@ -207,6 +204,22 @@ public class Picodi {
                 throw new UnexpectedPicodiException(String.format("Unexpected reflection exception when instantiating <%s>", cls), e);
             }
         }
+    }
+
+    private static <K> Optional<Constructor<K>> getPrimaryConstructor(Class<K> cls) {
+        Constructor<K>[] constructors = (Constructor<K>[]) cls.getDeclaredConstructors();
+
+        if (constructors.length == 1) {
+            return Optional.of(constructors[0]);
+        }
+
+        Set<Constructor<K>> primaryConstructors = Arrays.stream(constructors)
+                .filter(constructor -> constructor.isAnnotationPresent(PrimaryConstructor.class))
+                .collect(Collectors.toSet());
+        if (primaryConstructors.size() == 1) {
+            return Optional.of(primaryConstructors.iterator().next());
+        }
+        return Optional.empty();
     }
 
     private static Set<Class> newSet(Set<Class> existingHashSet, Class newElement) {

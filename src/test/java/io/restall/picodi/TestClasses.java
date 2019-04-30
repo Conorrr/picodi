@@ -135,4 +135,21 @@ public class TestClasses {
     public static class O extends N {
 
     }
+
+    public static class Q {
+        private final A a;
+
+        public Q(String str) {
+            this.a = null;
+        }
+
+        @PrimaryConstructor
+        public Q(A a) {
+            this.a = a;
+        }
+
+        public A getA() {
+            return a;
+        }
+    }
 }
