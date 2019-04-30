@@ -276,6 +276,67 @@ class PicocdiSpec extends Specification {
             n instanceof TestClasses.O
     }
 
+    def "do not need to register classes annotated with @Command"() {
+        given:
+            def iFactory = new Picodi()
+                    .register(TestClasses.A)
+                    .createIFactory()
+        when:
+            def testCommand = iFactory.create(TestCommand)
+        then:
+            testCommand instanceof TestCommand
+            testCommand.a != null
+    }
+
+    def "injects registered instance of @Command class rather than creating a new one"() {
+        given:
+            def testCommand = new TestCommand(new TestClasses.A())
+            def iFactory = new Picodi()
+                    .register(TestClasses.A)
+                    .register(testCommand)
+                    .createIFactory()
+        when:
+            def instance = iFactory.create(TestCommand)
+        then:
+            instance == testCommand
+    }
+
+    def "inner classes of command classes are automatically registered"() {
+        given:
+            def iFactory = new Picodi()
+                    .register(TestClasses.A)
+                    .createIFactory()
+        when:
+            def exclusive = iFactory.create(TestCommand2.Exclusive)
+        then:
+            exclusive.a != null
+    }
+
+    def "does not create second instance of inner class"() {
+        given:
+            def iFactory = new Picodi()
+                    .register(TestClasses.A)
+                    .createIFactory()
+        when:
+            def first = iFactory.create(TestCommand2.Exclusive)
+            def second = iFactory.create(TestCommand2.Exclusive)
+        then:
+            first == second
+    }
+
+    def "does not instantiate inner class if its outer class is not annotated with command"() {
+        given:
+            def iFactory = new Picodi()
+                    .register(TestClasses.A)
+                    .createIFactory()
+        when:
+            iFactory.create(TestClasses.B)
+
+        then:
+            def ex = thrown(InjectableNotFound)
+            ex.message == 'Injectable not found <class io.restall.picodi.TestClasses$B>'
+    }
+
     // Exception thrown if multiple implementations of a class that is required
 
     // Given a class has multiple constructors

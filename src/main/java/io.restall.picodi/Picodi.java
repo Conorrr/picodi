@@ -4,6 +4,7 @@ import picocli.CommandLine;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -57,7 +58,7 @@ public class Picodi {
      * If a class has multiple constructors and the class is not editable then use {@link #register(Class, Function)}
      *
      * @param injectableClass class that will be instantiated
-     * @param lazy whether to instantiate the class when it's needed or ahead of time
+     * @param lazy            whether to instantiate the class when it's needed or ahead of time
      * @return picodi so calls can be chained
      */
     public Picodi register(Class<?> injectableClass, boolean lazy) {
@@ -112,12 +113,12 @@ public class Picodi {
      * The creator function will be called once at most.
      *
      * @param injectableClass class that will be instantiated
-     * @param creator function that describes how to create the injectableClass
-     * @param <T> type of the injectableClass
+     * @param creator         function that describes how to create the injectableClass
+     * @param <T>             type of the injectableClass
      * @return picodi so calls can be chained
      */
     public <T> Picodi register(Class<T> injectableClass, Function<CommandLine.IFactory, T> creator) {
-        injectableCreatorMethods.put(injectableClass, (Function<CommandLine.IFactory, Object>)creator);
+        injectableCreatorMethods.put(injectableClass, (Function<CommandLine.IFactory, Object>) creator);
         return this;
     }
 
@@ -169,6 +170,13 @@ public class Picodi {
                 K instance = (K) injectableCreatorMethods.get(cls).apply(this);
                 injectables.put(cls, instance);
                 return instance;
+            }
+            if (cls.isAnnotationPresent(CommandLine.Command.class)) {
+                return instantiate(cls, alreadyRequested);
+            }
+            if (cls.isMemberClass() && Modifier.isStatic(cls.getModifiers())
+                    && cls.getEnclosingClass().isAnnotationPresent(CommandLine.Command.class)) {
+                return instantiate(cls, alreadyRequested);
             }
 
             throw new InjectableNotFound("Injectable not found <%s>", cls);
