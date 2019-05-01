@@ -10,7 +10,7 @@ You can add picodi as an external dependency to your project.
 ### Gradle
 
 ```
-compile 'io.restall.picodi:picodi:0.0.1'
+compile 'io.restall.picodi:picodi:0.0.5'
 ```
 
 ### Maven
@@ -19,7 +19,7 @@ compile 'io.restall.picodi:picodi:0.0.1'
 <dependency>
   <groupId>io.restall.picodi</groupId>
   <artifactId>picodi</artifactId>
-  <version>0.0.1</version>
+  <version>0.0.5</version>
 </dependency>
 ```
 
